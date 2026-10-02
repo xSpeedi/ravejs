@@ -36,6 +36,8 @@
   "author": "celt_is_god",
   "type": "commonjs",
   "scripts": {
+    "build": "tsc",
+    "prepare": "tsc || true",
     "test": "tsc && cd dist/ && node index.js"
   },
   "devDependencies": {

@@ -17,7 +17,8 @@ export const HASH_SECRET =
   'c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2';
 export const DEFAULT_LANGUAGE = 'ru';
 export const UUID_PATTERN = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx';
-export const SOCKET_PING_DELAY = 20000;
+export const SOCKET_PING_DELAY = 10000;
+export const SOCKET_DEAD_TIMEOUT = 30000;
 
 // Structures
 
