@@ -7,6 +7,7 @@ import { RaveConfig } from '../schemas/public';
 import initLogger, { LOGGER } from '../utils/logger';
 import { HttpWorkflow } from './httpworkflow';
 import { ThreadFactory } from '../factories/thread-factory';
+import { VideoFactory } from '../factories/video-factory';
 import { API_URL } from '../constants';
 import { validateProxy } from '../utils/utils';
 
@@ -18,6 +19,7 @@ export class Rave {
   private __userFactory?: UserFactory;
   private __meshFactory?: MeshFactory;
   private __threadFactory?: ThreadFactory;
+  private __videoFactory?: VideoFactory;
 
   constructor(config: RaveConfig = {}) {
     this.__config = config;
@@ -70,6 +72,12 @@ export class Rave {
     if (!this.__threadFactory)
       return (this.__threadFactory = new ThreadFactory(this.__http));
     return this.__threadFactory;
+  }
+
+  get video() {
+    if (!this.__videoFactory)
+      return (this.__videoFactory = new VideoFactory(this.__http));
+    return this.__videoFactory;
   }
 
   get proxy(): string | undefined {

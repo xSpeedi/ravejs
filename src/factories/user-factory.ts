@@ -17,6 +17,15 @@ import {
   GetFriendsSchema,
 } from '../schemas/responses';
 
+export interface ProfileChanges {
+  name?: string;
+  handle?: string;
+  avatar?: string;
+  country?: string;
+  globalHideMature?: boolean;
+  metadata?: { position: number; privacy: string };
+}
+
 export class UserFactory {
   private readonly __http: HttpWorkflow;
 
@@ -105,6 +114,56 @@ export class UserFactory {
         body: JSON.stringify(builder),
       },
       EditProfileSchema,
+    );
+  };
+
+  /** Esconde (ou volta a mostrar) a localização do perfil. */
+  public hideLocation = async (hide = true): Promise<boolean> => {
+    const resp = await this.__http.sendPost<{ success?: boolean }>(
+      {
+        path: '/users/self/location',
+        body: JSON.stringify({ hideLocation: hide }),
+      },
+      any(),
+    );
+    return !!resp?.success;
+  };
+
+  /**
+   * Edita o perfil do mesmo jeito que o app atual (PUT /profiles): lê o perfil,
+   * troca só o que você passar em `changes` e devolve a resposta crua do servidor.
+   * Ex.: await rave.user.updateProfile(rave.account.id, { name: 'Novo nome' })
+   */
+  public updateProfile = async (
+    userId: number,
+    changes: ProfileChanges,
+  ): Promise<unknown> => {
+    const current = await this.__http.sendGet<any>(
+      { path: `/profiles/${userId}?exclude=false&clientVersion=1` },
+      any(),
+    );
+    const p = current?.data?.profile;
+    if (!p) throw new Error('Profile not found in server response');
+
+    const profile: Record<string, unknown> = {
+      avatar: p.avatar,
+      country: p.country,
+      globalHideMature: p.globalHideMature,
+      handle: p.handle,
+      metadata: p.metadata,
+      name: p.name,
+      state: p.state,
+    };
+    for (const [key, value] of Object.entries(changes)) {
+      if (value !== undefined) profile[key] = value;
+    }
+
+    return await this.__http.sendPut<unknown>(
+      {
+        path: '/profiles',
+        body: JSON.stringify({ profile, exclude: false, clientVersion: 1 }),
+      },
+      any(),
     );
   };
 

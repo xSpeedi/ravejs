@@ -13,6 +13,13 @@ export const EVENTS_API_URL = 'https://api2.a-l-p-a.com';
 export const WE_MESH_API_URL = 'https://wallace2.red.wemesh.ca';
 export const MOJO_AUTH_URL = 'https://api.mojoauth.com';
 export const RAVE_LINK_URL = 'https://rave.link';
+// Host que o app atual (8.2.57) usa nos links de vídeo (/videos/youtube/<id>).
+export const VIDEO_URL_BASE = 'https://api.red.wemesh.ca';
+// Busca do YouTube que o app do Rave usa (cliente WEB).
+export const YOUTUBE_SEARCH_URL =
+  'https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false';
+export const YOUTUBE_SEARCH_PARAMS = 'EgIQAQ%3D%3D'; // só vídeos
+export const YOUTUBE_WEB_CLIENT_VERSION = '2.20221122.06.00';
 export const HASH_SECRET =
   'c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2';
 export const DEFAULT_LANGUAGE = 'ru';
