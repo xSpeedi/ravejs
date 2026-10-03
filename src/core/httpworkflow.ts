@@ -91,10 +91,24 @@ export class HttpWorkflow {
     const response = await body.text();
     LOGGER.child({ path: fullPath }).info(statusCode);
 
+    let parsed: unknown;
     try {
-      return schema.parse(JSON.parse(response)) as T;
+      parsed = JSON.parse(response);
     } catch {
+      // Não é JSON (HTML, corpo vazio...): devolve o texto como antes.
       return response as T;
+    }
+
+    try {
+      return schema.parse(parsed) as T;
+    } catch {
+      // O JSON é válido, mas não bate com o schema (ex.: sala sem vídeo, currentState "vote").
+      // Devolve o objeto já convertido em vez do texto cru, senão quem chama (mesh.get, join...)
+      // recebe uma string e quebra.
+      LOGGER.child({ path: fullPath }).warn(
+        'schema validation failed, returning unvalidated JSON',
+      );
+      return parsed as T;
     }
   };
 

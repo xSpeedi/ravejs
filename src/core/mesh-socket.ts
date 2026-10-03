@@ -162,8 +162,13 @@ export class MeshSocket {
 
     const entries = Object.entries(node as Record<string, unknown>);
     for (const [key, value] of entries) {
-      if (/instance/i.test(key) && typeof value === 'string' && UUID_RE.test(value)) {
-        return value;
+      if (!/instance/i.test(key)) continue;
+      if (typeof value === 'string' && UUID_RE.test(value)) return value;
+      // chave "instance" que guarda um objeto: pega o primeiro UUID de dentro dele
+      if (value && typeof value === 'object') {
+        for (const inner of Object.values(value as Record<string, unknown>)) {
+          if (typeof inner === 'string' && UUID_RE.test(inner)) return inner;
+        }
       }
     }
     for (const [, value] of entries) {
