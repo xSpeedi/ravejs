@@ -69,7 +69,11 @@ export class HttpWorkflow {
       'request-ts': timestamp,
       ssaid: generateSSAID(),
       Host: host || this.__headers.Host,
-      'request-hash': generateHash(this.token, timestamp, data?.length || 0),
+      'request-hash': generateHash(
+        this.token,
+        timestamp,
+        data ? Buffer.byteLength(data, 'utf8') : 0,
+      ),
     };
   };
 

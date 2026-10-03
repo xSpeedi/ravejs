@@ -16,15 +16,14 @@ export interface SocketResponse {
 
 export interface ChatOptions {
   text?: string;
-  /** idioma da mensagem (padrão: 'en') */
   lang?: string;
-  /** id (uuid) da mensagem que está sendo respondida */
   replyTo?: string | null;
   mentions?: { id: number | string; handle: string }[];
   media?: { mime: string; url: string; isExplicit?: boolean }[];
-  /** uuid da mensagem; gerado automaticamente se omitido */
   id?: string;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class MeshSocket {
   private __config: MeshSocketConfig;
@@ -33,6 +32,8 @@ export class MeshSocket {
   private __heartbeat?: NodeJS.Timeout;
   private __lastActivity = Date.now();
   private __pending = new Map<number, (r: SocketResponse) => void>();
+  private __meshState: Record<string, any> | undefined;
+  private __videoInstanceId: string | undefined;
 
   constructor(config: MeshSocketConfig) {
     this.__config = config;
@@ -48,7 +49,6 @@ export class MeshSocket {
         : undefined,
     });
 
-    // Ouvinte padrão de erro: sem ele, um 'error' sem handler derruba o processo.
     this.__websocket.on('error', (error: Error) => {
       LOGGER.error({ url: this.__url, error: error?.message }, 'WebSocket error');
     });
@@ -60,9 +60,9 @@ export class MeshSocket {
       this.__startHeartbeat();
     });
 
-    // Qualquer mensagem ou pong conta como "a conexão está viva".
     this.__websocket.on('message', this.__touch);
     this.__websocket.on('message', this.__onResponse);
+    this.__websocket.on('message', this.__onStateMessage);
     this.__websocket.on('pong', this.__touch);
 
     this.__websocket.on('close', () => {
@@ -76,8 +76,6 @@ export class MeshSocket {
     this.__lastActivity = Date.now();
   };
 
-  // Ping + vigia: se nada chegar do servidor por SOCKET_DEAD_TIMEOUT, derruba
-  // o socket (terminate) e o 'close' normal dispara a reconexão de quem usa.
   private __startHeartbeat = () => {
     this.__stopHeartbeat();
     this.__heartbeat = setInterval(() => {
@@ -132,8 +130,6 @@ export class MeshSocket {
     );
   };
 
-  // ---- protoo: pedidos com resposta ----
-
   private __onResponse = (raw: unknown) => {
     if (this.__pending.size === 0) return;
 
@@ -159,6 +155,51 @@ export class MeshSocket {
       errorCode: msg.errorCode,
       errorReason: msg.errorReason,
     });
+  };
+
+  private __findInstanceId = (node: unknown, depth = 0): string | undefined => {
+    if (!node || typeof node !== 'object' || depth > 6) return undefined;
+
+    const entries = Object.entries(node as Record<string, unknown>);
+    for (const [key, value] of entries) {
+      if (/instance/i.test(key) && typeof value === 'string' && UUID_RE.test(value)) {
+        return value;
+      }
+    }
+    for (const [, value] of entries) {
+      if (value && typeof value === 'object') {
+        const found = this.__findInstanceId(value, depth + 1);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+
+  private __onStateMessage = (raw: unknown) => {
+    let msg: any;
+    try {
+      msg = JSON.parse(String(raw));
+    } catch {
+      return;
+    }
+    if (!msg || msg.method !== 'stateMessage') return;
+
+    let inner: any = msg.data?.message;
+    if (typeof inner === 'string') {
+      try {
+        inner = JSON.parse(inner);
+      } catch {
+        return;
+      }
+    }
+    if (!inner || typeof inner !== 'object') return;
+
+    const state = inner.mesh_state ?? inner.meshState ?? inner;
+    if (!state || typeof state !== 'object') return;
+
+    this.__meshState = state;
+    const instanceId = this.__findInstanceId(state);
+    if (instanceId) this.__videoInstanceId = instanceId;
   };
 
   private __flushPending = (errorCode: string) => {
@@ -204,7 +245,6 @@ export class MeshSocket {
       }
     });
 
-  /** Envia um JSON cru. Devolve false se o socket não está aberto. */
   public send = (payload: object): boolean => {
     if (!this.isOpen) return false;
     try {
@@ -215,15 +255,12 @@ export class MeshSocket {
     }
   };
 
-  /** Pedido protoo: manda e espera a resposta com o mesmo id (nunca lança erro). */
   public request = (
     method: string,
     data: object = {},
     timeoutMs = 10000,
   ): Promise<SocketResponse> =>
     this.__requestRaw({ data, method, request: true }, timeoutMs);
-
-  // ---- chat ----
 
   private __chatData = (options: ChatOptions) => {
     const text = options.text ?? '';
@@ -255,7 +292,6 @@ export class MeshSocket {
     return { messageId, data };
   };
 
-  /** Envia mensagem (texto, resposta, menções, mídia). Devolve o id da mensagem, ou null se o socket não está aberto. */
   public sendChat = (options: ChatOptions): string | null => {
     const { messageId, data } = this.__chatData(options);
     const ok = this.send({
@@ -268,7 +304,6 @@ export class MeshSocket {
     return ok ? messageId : null;
   };
 
-  /** Igual ao sendChat, mas espera a resposta do servidor (útil para mídia, que pode ser recusada). */
   public sendChatAndWait = async (
     options: ChatOptions,
     timeoutMs = 10000,
@@ -281,7 +316,6 @@ export class MeshSocket {
     return { ...r, messageId };
   };
 
-  /** Reage a uma mensagem com um emoji. Devolve o id da reação, ou null se o socket não está aberto. */
   public sendReaction = (messageId: string, emoji: string): string | null => {
     const id = randomUUID();
     const ok = this.send({
@@ -310,6 +344,14 @@ export class MeshSocket {
 
   get lastActivityAt(): number {
     return this.__lastActivity;
+  }
+
+  get videoInstanceId(): string | undefined {
+    return this.__videoInstanceId;
+  }
+
+  get meshState(): Record<string, any> | undefined {
+    return this.__meshState;
   }
 
   public onopen = (handler: () => void) => {
@@ -345,7 +387,6 @@ export class MeshSocket {
     );
   };
 
-  // Fecha na marra, sem esperar o handshake de fechamento (socket meio morto).
   public terminate = (): void => {
     this.__stopHeartbeat();
     this.__websocket.terminate();

@@ -29,17 +29,13 @@ export interface MediaUploadInfo {
   fileName: string;
 }
 
-/** Item para a fila do usuário (POST /users/self/queues/insert). */
 export interface QueueItemInput {
   title: string;
   thumbnail: string;
-  /** duração em segundos */
   durationSeconds: number;
-  /** id do vídeo no Rave (UUID) ou o link /videos/youtube/<id> */
   video: string;
   author?: string;
   isLive?: boolean;
-  /** o app manda true ao tocar direto de uma busca e false ao só adicionar na fila */
   replaceable?: boolean;
 }
 
@@ -100,12 +96,10 @@ export class MeshFactory {
     );
   };
 
-  /** Lista de usuários que estão na sala agora. */
   public getUsers = async (meshId: string) => {
     return (await this.get(meshId)).data.users;
   };
 
-  /** Expulsa um ou mais usuários da sala (precisa ser líder/moderador). Devolve a resposta crua do servidor. */
   public kick = async (
     meshId: string,
     userIds: number | number[],
@@ -126,7 +120,6 @@ export class MeshFactory {
     );
   };
 
-  /** Passa a coroa (liderança) da sala para outro usuário. Devolve true se o servidor aceitou. */
   public transferLeadership = async (
     meshId: string,
     newLeaderId: number | string,
@@ -141,7 +134,6 @@ export class MeshFactory {
     return !!resp?.success;
   };
 
-  /** Muta um usuário na sala (a ação do app que vira POST /meshes/{id}/mute/{userId}). */
   public mute = async (
     meshId: string,
     userId: number | string,
@@ -164,10 +156,6 @@ export class MeshFactory {
     return !!resp?.success;
   };
 
-  /**
-   * Play/pause do vídeo da sala (PUT /meshes/{id}/state), como o app faz.
-   * `position` em segundos. Devolve a sala atualizada.
-   */
   public setState = async (
     meshId: string,
     state: 'PLAY' | 'PAUS',
@@ -186,7 +174,6 @@ export class MeshFactory {
     );
   };
 
-  /** Pede ao servidor um endereço de upload para uma mídia do chat. */
   public requestMediaUpload = async (
     meshId: string,
     mime: string,
@@ -204,7 +191,6 @@ export class MeshFactory {
     return resp?.data?.[0] ?? null;
   };
 
-  /** Sobe uma mídia e devolve a URL para usar em ChatOptions.media[].url. Lança erro se falhar. */
   public uploadMedia = async (
     meshId: string,
     data: Buffer,
@@ -272,11 +258,6 @@ export class MeshFactory {
     });
   };
 
-  /**
-   * Vota num vídeo da sala (POST /meshes/{id}/votes) — é assim que o app põe um
-   * vídeo para tocar em sala com playMode VOTE. `video` = id do Rave (o que
-   * `rave.video.registerYoutube` devolve) ou o link. `urlBase` troca o host do link.
-   */
   public vote = async (
     meshId: string,
     video: string,
@@ -295,11 +276,6 @@ export class MeshFactory {
     );
   };
 
-  /**
-   * Curtir ou pular o vídeo que está tocando (PUT /meshes/{id}/likeskip).
-   * `video` = o `mediaUrl` da sala (ou o id do Rave). `videoInstanceId` é o id da
-   * execução atual do vídeo na sala. Devolve true se o servidor aceitou.
-   */
   public likeSkip = async (
     meshId: string,
     opinion: 'LIKE' | 'SKIP',
@@ -321,7 +297,32 @@ export class MeshFactory {
     return !!resp?.success;
   };
 
-  /** Põe um vídeo na fila do usuário para a sala (position -1 = no fim, 0 = no começo). */
+  public removeOpinion = async (
+    meshId: string,
+    opinion: 'LIKE' | 'SKIP',
+    video: string,
+    videoInstanceId?: string,
+    urlBase?: string,
+  ): Promise<boolean> => {
+    const query = new URLSearchParams({
+      url: raveVideoUrl(video, urlBase),
+      opinion,
+    });
+    if (videoInstanceId) query.set('videoInstanceId', videoInstanceId);
+
+    const resp = await this.__http.sendDelete<{ success?: boolean }>(
+      { path: `/meshes/${meshId}/likeskip?${query.toString()}` },
+      z.any(),
+    );
+    return !!resp?.success;
+  };
+
+  public resume = async (meshId: string): Promise<unknown> => {
+    const mesh = await this.get(meshId);
+    if (mesh.data.currentState === 'play') return mesh;
+    return await this.setState(meshId, 'PLAY', Math.floor(mesh.data.position));
+  };
+
   public queueInsert = async (
     meshId: string,
     item: QueueItemInput,
