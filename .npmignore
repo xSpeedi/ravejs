@@ -1,0 +1,9 @@
+src/
+tests/
+node_modules/
+
+*.ts
+cache.json
+.prettierrc
+.env
+package-lock.json
